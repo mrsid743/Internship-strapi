@@ -2,52 +2,23 @@ provider "aws" {
   region = var.aws_region
 }
 
-# --- Networking ---
+# --- Use Existing Networking ---
 
-resource "aws_vpc" "strapi_vpc" {
-  cidr_block = "10.0.0.0/16"
-  tags = {
-    Name = "strapi-vpc"
-  }
+# Look up the default VPC in your account
+data "aws_vpc" "default" {
+  default = true
 }
 
-resource "aws_internet_gateway" "strapi_igw" {
-  vpc_id = aws_vpc.strapi_vpc.id
-  tags = {
-    Name = "strapi-igw"
-  }
-}
-
-resource "aws_subnet" "strapi_public_subnet" {
-  vpc_id                  = aws_vpc.strapi_vpc.id
-  cidr_block              = "10.0.1.0/24"
-  map_public_ip_on_launch = true
-  availability_zone       = "${var.aws_region}a"
-  tags = {
-    Name = "strapi-public-subnet"
-  }
-}
-
-resource "aws_route_table" "strapi_public_rt" {
-  vpc_id = aws_vpc.strapi_vpc.id
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.strapi_igw.id
-  }
-  tags = {
-    Name = "strapi-public-rt"
-  }
-}
-
-resource "aws_route_table_association" "a" {
-  subnet_id      = aws_subnet.strapi_public_subnet.id
-  route_table_id = aws_route_table.strapi_public_rt.id
+# Look up a public subnet within the default VPC
+data "aws_subnet" "default" {
+  vpc_id            = data.aws_vpc.default.id
+  availability_zone = "${var.aws_region}a" # Using 'a' zone, can be changed if needed
 }
 
 resource "aws_security_group" "strapi_sg" {
   name        = "strapi-sg"
   description = "Allow SSH, HTTP, and Strapi default port"
-  vpc_id      = aws_vpc.strapi_vpc.id
+  vpc_id      = data.aws_vpc.default.id # Use the default VPC ID
 
   ingress {
     from_port   = 22
@@ -82,38 +53,17 @@ resource "aws_security_group" "strapi_sg" {
   }
 }
 
-# --- IAM ---
+# --- Use Existing IAM Role ---
 
-resource "aws_iam_role" "ec2_ecr_full_access_role" {
+# Look up the existing IAM Role
+data "aws_iam_role" "existing_role" {
   name = "ec2_ecr_full_access_role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect    = "Allow",
-      Principal = { Service = "ec2.amazonaws.com" },
-      Action    = "sts:AssumeRole"
-    }]
-  })
 }
 
-resource "aws_iam_role_policy_attachment" "ecr_full" {
-  role       = aws_iam_role.ec2_ecr_full_access_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
-}
-
-resource "aws_iam_role_policy_attachment" "ec2_full" {
-  role       = aws_iam_role.ec2_ecr_full_access_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
-}
-
-resource "aws_iam_role_policy_attachment" "ssm_core" {
-  role       = aws_iam_role.ec2_ecr_full_access_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-}
-
+# Create an Instance Profile and attach the existing role to it
 resource "aws_iam_instance_profile" "strapi_instance_profile" {
   name = "ec2_ecr_full_access_profile"
-  role = aws_iam_role.ec2_ecr_full_access_role.name
+  role = data.aws_iam_role.existing_role.name
 }
 
 # --- EC2 Instance ---
@@ -121,7 +71,7 @@ resource "aws_iam_instance_profile" "strapi_instance_profile" {
 resource "aws_instance" "strapi_server" {
   ami                    = "ami-0f5ee92e2d63afc18" # Amazon Linux 2023 AMI for ap-south-1 (Mumbai)
   instance_type          = "t2.micro"
-  subnet_id              = aws_subnet.strapi_public_subnet.id
+  subnet_id              = data.aws_subnet.default.id # Use the default subnet ID
   vpc_security_group_ids = [aws_security_group.strapi_sg.id]
   key_name               = "strapi-mumbai-key"
   iam_instance_profile   = aws_iam_instance_profile.strapi_instance_profile.name
