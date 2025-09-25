@@ -15,19 +15,14 @@ jobs:
     name: Deploy to AWS via Terraform
     runs-on: ubuntu-latest
     
-    # NEW: Set a default working directory for all steps in this job.
-    # If your .tf files are in a subdirectory, change '.' to './your_folder_name'
+    # CORRECTED: Point to the 'terraform' subdirectory where your .tf files are located.
     defaults:
       run:
-        working-directory: .
+        working-directory: ./terraform
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      # NEW: Debugging step to list all files recursively from the checkout directory
-      - name: List files in the repository
-        run: ls -lR
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -47,7 +42,6 @@ jobs:
 
       - name: Terraform Plan
         id: plan
-        # The plan step will now fail the workflow if it encounters an error, which is better for debugging.
         run: |
           terraform plan -no-color \
             -var="image_tag=${{ github.event.inputs.image_tag }}" \
