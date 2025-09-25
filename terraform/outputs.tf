@@ -1,14 +1,12 @@
-output "ecr_repository_url" {
-  description = "The URL of the ECR repository"
-  value       = aws_ecr_repository.strapi_ecr_repo.repository_url
-}
+# outputs.tf
+# Defines the output values from our Terraform configuration.
 
-output "strapi_server_public_ip" {
-  description = "Public IP of the EC2 instance running Strapi"
+output "public_ip" {
+  description = "The public IP address of the Strapi EC2 instance."
   value       = aws_instance.strapi_server.public_ip
 }
 
-output "ssm_connection_command" {
-  description = "Command to connect to the EC2 instance using SSM Session Manager"
-  value       = "aws ssm start-session --target ${aws_instance.strapi_server.id}"
+output "ssh_command" {
+  description = "Command to SSH into the EC2 instance."
+  value       = "ssh -i <path_to_your_private_key> ec2-user@${aws_instance.strapi_server.public_ip}"
 }

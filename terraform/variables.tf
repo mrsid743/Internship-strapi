@@ -1,34 +1,30 @@
+# variables.tf
+# Input variables for the Terraform configuration.
+
 variable "aws_region" {
-  description = "AWS region for the resources"
+  description = "The AWS region to deploy resources in."
   type        = string
   default     = "ap-south-1"
 }
 
+variable "ecr_repository_url" {
+  description = "The URL of the ECR repository (e.g., 123456789012.dkr.ecr.ap-south-1.amazonaws.com)."
+  type        = string
+}
+
+variable "ecr_repository_name" {
+  description = "The name of the ECR repository."
+  type        = string
+  default     = "siddhant-strapi"
+}
+
 variable "image_tag" {
-  description = "Docker image tag for the Strapi application"
+  description = "The Docker image tag to deploy."
   type        = string
 }
 
-variable "strapi_app_keys" {
-  description = "Strapi APP_KEYS secret"
-  type        = string
-  sensitive   = true
-}
-
-variable "strapi_api_token_salt" {
-  description = "Strapi API_TOKEN_SALT secret"
-  type        = string
-  sensitive   = true
-}
-
-variable "strapi_admin_jwt_secret" {
-  description = "Strapi ADMIN_JWT_SECRET secret"
-  type        = string
-  sensitive   = true
-}
-
-variable "strapi_jwt_secret" {
-  description = "Strapi JWT_SECRET secret"
+variable "ssh_public_key" {
+  description = "The public SSH key for accessing the EC2 instance."
   type        = string
   sensitive   = true
 }

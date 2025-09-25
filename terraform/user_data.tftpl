@@ -14,11 +14,15 @@ unzip awscliv2.zip
 ./aws/install
 
 # Authenticate Docker with Amazon ECR
-# The EC2 instance role provides the credentials
 aws ecr get-login-password --region ${aws_region} | docker login --username AWS --password-stdin ${ecr_repo_url}
 
 # Pull the Strapi application image from ECR
 docker pull ${ecr_repo_url}:${image_tag}
+
+# Stop and remove any existing container with the same name to avoid conflicts
+# The '|| true' ensures the script doesn't fail if the container doesn't exist
+docker stop strapi_app || true
+docker rm strapi_app || true
 
 # Run the Strapi container with environment variables for secrets
 docker run -d -p 1337:1337 --name strapi_app --restart always \
@@ -27,3 +31,4 @@ docker run -d -p 1337:1337 --name strapi_app --restart always \
   -e ADMIN_JWT_SECRET="${strapi_admin_jwt_secret}" \
   -e JWT_SECRET="${strapi_jwt_secret}" \
   ${ecr_repo_url}:${image_tag}
+

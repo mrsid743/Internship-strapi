@@ -1,0 +1,28 @@
+# ----------------------------------------------------------------
+# Terraform Variable Definitions
+# ----------------------------------------------------------------
+#
+# INSTRUCTIONS:
+# 1. Copy this file to a new file named 'terraform.tfvars'.
+# 2. Fill in all the secret values below.
+# 3. IMPORTANT: Add 'terraform.tfvars' to your .gitignore file
+#    to prevent your secrets from being committed to version control.
+#
+# Terraform will automatically load variables from 'terraform.tfvars'
+# when you run `terraform plan` or `terraform apply`.
+# ----------------------------------------------------------------
+
+# AWS Configuration
+aws_region   = "ap-south-1"
+ec2_key_name = "strapi-mumbai-key"
+
+# Docker Image Tag (This will be passed from your GitHub Action)
+# You can set a default for local testing if you wish.
+# image_tag = "latest"
+
+# Strapi Application Secrets
+# Replace these placeholder values with your actual secrets.
+strapi_app_keys         = "qJaCHP9QxAnQPwbDpcIb3w==,qeuaUbUJisJ7SfBq9VVq1g=="
+strapi_api_token_salt   = "kg7aQYxGef4RcGFFCgdH+A=="
+strapi_admin_jwt_secret = "ADB6gPTW+1WB/GSr7zOVTg=="
+strapi_jwt_secret       = "rkGWmUykRW4jlV9mCPcRBw=="
