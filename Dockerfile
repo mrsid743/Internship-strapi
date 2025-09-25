@@ -2,7 +2,6 @@
 
 # Build Stage
 FROM node:18-alpine AS build
-RUN npm install -g npm@latest # Good practice to use the latest npm
 
 WORKDIR /opt/app
 COPY package.json package-lock.json ./
