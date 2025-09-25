@@ -7,3 +7,8 @@ output "strapi_server_public_ip" {
   description = "Public IP of the EC2 instance running Strapi"
   value       = aws_instance.strapi_server.public_ip
 }
+
+output "ssm_connection_command" {
+  description = "Command to connect to the EC2 instance using SSM Session Manager"
+  value       = "aws ssm start-session --target ${aws_instance.strapi_server.id}"
+}

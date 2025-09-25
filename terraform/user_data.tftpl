@@ -1,23 +1,29 @@
 #!/bin/bash
+set -e # Exit immediately if a command exits with a non-zero status.
+
+# Update system packages and install Docker
 yum update -y
 amazon-linux-extras install docker -y
 service docker start
-usermod -aG docker ec2-user
+usermod -a -G docker ec2-user
 chkconfig docker on
 
-# Install aws cli v2
+# Install AWS CLI v2 for ECR access
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
 unzip awscliv2.zip
-sudo ./aws/install
+./aws/install
 
-# Login to ECR
+# Authenticate Docker with Amazon ECR
+# The EC2 instance role provides the credentials
 aws ecr get-login-password --region ${aws_region} | docker login --username AWS --password-stdin ${ecr_repo_url}
 
-# Pull and run Strapi container
+# Pull the Strapi application image from ECR
 docker pull ${ecr_repo_url}:${image_tag}
-docker run -d -p 1337:1337 \
-  -e APP_KEYS=${strapi_app_keys} \
-  -e API_TOKEN_SALT=${strapi_api_token_salt} \
-  -e ADMIN_JWT_SECRET=${strapi_admin_jwt_secret} \
-  -e JWT_SECRET=${strapi_jwt_secret} \
+
+# Run the Strapi container with environment variables for secrets
+docker run -d -p 1337:1337 --name strapi_app --restart always \
+  -e APP_KEYS="${strapi_app_keys}" \
+  -e API_TOKEN_SALT="${strapi_api_token_salt}" \
+  -e ADMIN_JWT_SECRET="${strapi_admin_jwt_secret}" \
+  -e JWT_SECRET="${strapi_jwt_secret}" \
   ${ecr_repo_url}:${image_tag}
