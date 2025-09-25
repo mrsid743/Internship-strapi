@@ -1,16 +1,20 @@
-name: CI - Build and Push Strapi Docker Image
+# .github/workflows/ci.yml
+# This workflow builds the Strapi Docker image and pushes it to AWS ECR.
+name: CI - Build and Push Strapi Image
 
 on:
   push:
     branches:
-      - main
+      - main # Triggers on push to the main branch
 
 jobs:
-  build-and-push:
+  build-and-push-to-ecr:
+    name: Build and Push to ECR
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
-      id-token: write # Required for AWS OIDC authentication
+      id-token: write # Required for configuring AWS credentials
 
     steps:
       - name: Checkout repository
@@ -21,7 +25,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ap-south-1 # Mumbai
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -30,20 +34,13 @@ jobs:
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
         env:
+          # Use the ECR registry URI from the previous step and your repository name
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          ECR_REPOSITORY: siddhant-strapi
+          # Use the short git commit hash as the image tag for versioning
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Build and tag the Docker image
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          
-          # Push the image to ECR
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          
-          # Make the image tag available to other steps
-          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-
-      - name: Print Image Tag
-        run: |
-          echo "Successfully built and pushed image with tag: ${{ steps.build-image.outputs.image_tag }}"
-          echo "Use this tag when running the 'Deploy to AWS' workflow."
+          # Set the ECR image URI as an output for potential use in other jobs/workflows
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
