@@ -32,7 +32,7 @@ COPY --from=build /opt/app/package-lock.json ./package-lock.json
 RUN npm install --omit=dev --legacy-peer-deps
 
 # Copy the built application from the 'build' stage
-COPY --from=build /opt/app/dist ./dist
+COPY --from=build /opt/app/build ./build
 
 # Copy the Strapi configuration and other necessary folders from the 'build' stage
 COPY --from=build /opt/app/config ./config
