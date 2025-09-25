@@ -6,9 +6,9 @@ on:
   workflow_dispatch: # Allows manual triggering from the GitHub UI
     inputs:
       image_tag:
-        description: 'Image tag to deploy (defaults to latest commit on main)'
+        description: 'Image tag to deploy (e.g., commit SHA from the CI build)'
         required: true
-        default: ${{ github.sha }}
+        # The default value was removed as it cannot use the github context.
 
 jobs:
   terraform-deploy:
