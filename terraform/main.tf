@@ -55,17 +55,16 @@ resource "aws_security_group" "strapi_sg" {
 }
 
 
-# --- Use Existing IAM Role ---
+# --- Use Existing IAM Role & Profile ---
 
 # Look up the existing IAM Role
 data "aws_iam_role" "existing_role" {
   name = "ec2_ecr_full_access_role"
 }
 
-# Create an Instance Profile and attach the existing role to it
-resource "aws_iam_instance_profile" "strapi_instance_profile" {
+# Look up the existing Instance Profile instead of creating a new one
+data "aws_iam_instance_profile" "existing_profile" {
   name = "ec2_ecr_full_access_profile"
-  role = data.aws_iam_role.existing_role.name
 }
 
 # --- EC2 Instance ---
@@ -76,7 +75,7 @@ resource "aws_instance" "strapi_server" {
   subnet_id              = data.aws_subnet.default.id # Use the default subnet ID
   vpc_security_group_ids = [aws_security_group.strapi_sg.id] # Use the new SG resource
   key_name               = "strapi-mumbai-key"
-  iam_instance_profile   = aws_iam_instance_profile.strapi_instance_profile.name
+  iam_instance_profile   = data.aws_iam_instance_profile.existing_profile.name
 
   user_data = <<-EOF
               #!/bin/bash
