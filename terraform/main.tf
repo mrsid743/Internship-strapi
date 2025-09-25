@@ -2,24 +2,61 @@ provider "aws" {
   region = var.aws_region
 }
 
-# --- Data Sources to look up EXISTING resources ---
+# --- Data Sources for Networking ---
 
 # Find the default VPC
 data "aws_vpc" "default" {
   default = true
 }
 
-# Find a default public subnet in the 'a' availability zone
+# Find a default public subnet
 data "aws_subnet" "default" {
   vpc_id            = data.aws_vpc.default.id
   availability_zone = "${var.aws_region}a"
 }
 
-# Find the existing security group by its name
-data "aws_security_group" "existing_sg" {
-  name   = "strapi-sg-sid"
-  vpc_id = data.aws_vpc.default.id
+# --- Managed Security Group ---
+
+# CREATE and manage the security group with Terraform
+resource "aws_security_group" "strapi_sg" {
+  name        = "strapi-sg-sid"
+  description = "Allow SSH, HTTP, and Strapi default port"
+  vpc_id      = data.aws_vpc.default.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 1337
+    to_port     = 1337
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "strapi-sg-sid"
+  }
 }
+
+# --- Data Source for IAM ---
 
 # Find the existing IAM instance profile
 data "aws_iam_instance_profile" "existing_profile" {
@@ -30,17 +67,15 @@ data "aws_iam_instance_profile" "existing_profile" {
 # --- EC2 Instance Resource ---
 
 resource "aws_instance" "strapi_server" {
-  # Use the data sources to configure the instance
   ami                    = "ami-0f5ee92e2d63afc18" # Amazon Linux 2023 for ap-south-1
-  instance_type          = "t2.micro"
+  instance_type          = "t2-micro"
   subnet_id              = data.aws_subnet.default.id
-  vpc_security_group_ids = [data.aws_security_group.existing_sg.id]
+  # Reference the new security group resource
+  vpc_security_group_ids = [aws_security_group.strapi_sg.id]
   iam_instance_profile   = data.aws_iam_instance_profile.existing_profile.name
-
-  # This is the crucial part - attach the key that we know works
   key_name               = "strapi-mumbai-key"
 
-  # Startup Script
+  # FINAL user_data script for AMAZON LINUX
   user_data = <<-EOF
               #!/bin/bash
               yum update -y
@@ -57,7 +92,7 @@ resource "aws_instance" "strapi_server" {
               EOF
 
   tags = {
-    Name = "Strapi-Server-Final"
+    Name = "Strapi-Server-Final-Fixed"
   }
 }
 
