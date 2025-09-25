@@ -1,0 +1,18 @@
+# .dockerignore
+
+# Prevents local dependencies from being copied
+node_modules
+
+# Strapi-specific folders that don't need to be in the image
+.tmp
+build
+dist
+
+# Environment files (should be managed securely)
+.env
+
+# General ignores
+npm-debug.log
+Dockerfile
+.dockerignore
+README.md
