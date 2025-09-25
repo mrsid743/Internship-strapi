@@ -84,8 +84,36 @@ resource "aws_security_group" "strapi_sg" {
 
 # --- IAM ---
 
-data "aws_iam_instance_profile" "existing_profile" {
+resource "aws_iam_role" "ec2_ecr_full_access_role" {
   name = "ec2_ecr_full_access_role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect    = "Allow",
+      Principal = { Service = "ec2.amazonaws.com" },
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ecr_full" {
+  role       = aws_iam_role.ec2_ecr_full_access_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_full" {
+  role       = aws_iam_role.ec2_ecr_full_access_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_core" {
+  role       = aws_iam_role.ec2_ecr_full_access_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "strapi_instance_profile" {
+  name = "ec2_ecr_full_access_profile"
+  role = aws_iam_role.ec2_ecr_full_access_role.name
 }
 
 # --- EC2 Instance ---
@@ -95,8 +123,8 @@ resource "aws_instance" "strapi_server" {
   instance_type          = "t2.micro"
   subnet_id              = aws_subnet.strapi_public_subnet.id
   vpc_security_group_ids = [aws_security_group.strapi_sg.id]
-  key_name               = "strapi-mumbai-key" # Use existing key pair
-  iam_instance_profile   = data.aws_iam_instance_profile.existing_profile.name
+  key_name               = "strapi-mumbai-key"
+  iam_instance_profile   = aws_iam_instance_profile.strapi_instance_profile.name
 
   user_data = <<-EOF
               #!/bin/bash
