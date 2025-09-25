@@ -15,8 +15,9 @@ data "aws_subnet" "default" {
   availability_zone = "${var.aws_region}a" # Using 'a' zone, can be changed if needed
 }
 
+# CREATE and manage the security group with Terraform
 resource "aws_security_group" "strapi_sg" {
-  name        = "strapi-sg"
+  name        = "strapi-sg-sid"
   description = "Allow SSH, HTTP, and Strapi default port"
   vpc_id      = data.aws_vpc.default.id # Use the default VPC ID
 
@@ -49,9 +50,10 @@ resource "aws_security_group" "strapi_sg" {
   }
 
   tags = {
-    Name = "strapi-sg"
+    Name = "strapi-sg-sid"
   }
 }
+
 
 # --- Use Existing IAM Role ---
 
@@ -72,7 +74,7 @@ resource "aws_instance" "strapi_server" {
   ami                    = "ami-0f5ee92e2d63afc18" # Amazon Linux 2023 AMI for ap-south-1 (Mumbai)
   instance_type          = "t2.micro"
   subnet_id              = data.aws_subnet.default.id # Use the default subnet ID
-  vpc_security_group_ids = [aws_security_group.strapi_sg.id]
+  vpc_security_group_ids = [aws_security_group.strapi_sg.id] # Use the new SG resource
   key_name               = "strapi-mumbai-key"
   iam_instance_profile   = aws_iam_instance_profile.strapi_instance_profile.name
 
