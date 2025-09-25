@@ -1,0 +1,23 @@
+#!/bin/bash
+yum update -y
+amazon-linux-extras install docker -y
+service docker start
+usermod -aG docker ec2-user
+chkconfig docker on
+
+# Install aws cli v2
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+
+# Login to ECR
+aws ecr get-login-password --region ${aws_region} | docker login --username AWS --password-stdin ${ecr_repo_url}
+
+# Pull and run Strapi container
+docker pull ${ecr_repo_url}:${image_tag}
+docker run -d -p 1337:1337 \
+  -e APP_KEYS=${strapi_app_keys} \
+  -e API_TOKEN_SALT=${strapi_api_token_salt} \
+  -e ADMIN_JWT_SECRET=${strapi_admin_jwt_secret} \
+  -e JWT_SECRET=${strapi_jwt_secret} \
+  ${ecr_repo_url}:${image_tag}
