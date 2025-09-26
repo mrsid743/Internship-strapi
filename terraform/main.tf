@@ -67,7 +67,7 @@ data "aws_iam_instance_profile" "existing_profile" {
 # --- EC2 Instance Resource ---
 
 resource "aws_instance" "strapi_server" {
-  ami                    = "ami-0f5ee92e2d63afc18" # Amazon Linux 2023 for ap-south-1
+  ami                    = "ami-0abcdef1234567890" # Amazon Linux 2023 for ap-south-1
   instance_type          = "t2.micro" 
   subnet_id              = data.aws_subnet.default.id
   vpc_security_group_ids = [aws_security_group.strapi_sg.id]
