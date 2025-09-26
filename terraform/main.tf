@@ -1,30 +1,26 @@
-# Latest Amazon Linux 2 AMI
-data "aws_ami" "latest_amazon_linux_2" {
-  most_recent = true
-  owners      = ["amazon"]
-  filter {
-    name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
-  }
+provider "aws" {
+  region = var.aws_region
 }
 
-# Default VPC
+# --- Data Sources for Networking ---
+
+# Find the default VPC
 data "aws_vpc" "default" {
   default = true
 }
 
-# All subnets in default VPC
-data "aws_subnets" "default" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
-  }
+# Find a default public subnet
+data "aws_subnet" "default" {
+  vpc_id            = data.aws_vpc.default.id
+  availability_zone = "${var.aws_region}a"
 }
 
-# Security group (renamed to avoid duplicate)
+# --- Managed Security Group ---
+
+# CREATE and manage the security group with Terraform
 resource "aws_security_group" "strapi_sg" {
-  name        = "strapi-sg-sid"  # renamed
-  description = "Allow SSH and Strapi"
+  name        = "strapi-sg-sid"
+  description = "Allow SSH, HTTP, and Strapi default port"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
@@ -32,7 +28,13 @@ resource "aws_security_group" "strapi_sg" {
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "SSH"
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
@@ -40,7 +42,6 @@ resource "aws_security_group" "strapi_sg" {
     to_port     = 1337
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "Strapi"
   }
 
   egress {
@@ -55,7 +56,6 @@ resource "aws_security_group" "strapi_sg" {
   }
 }
 
-
 # --- Data Source for IAM ---
 
 # Find the existing IAM instance profile
@@ -64,17 +64,32 @@ data "aws_iam_instance_profile" "existing_profile" {
 }
 
 
-# EC2 instance
-resource "aws_instance" "strapi_ec2" {
-  ami           = data.aws_ami.latest_amazon_linux_2.id
-  instance_type = var.instance_type
-  key_name      = var.key_name
-  security_groups = [aws_security_group.strapi_sg.id]
-  subnet_id       = length(var.subnet_id) > 0 ? var.subnet_id : data.aws_subnets.default.ids[0]
+# --- EC2 Instance Resource ---
 
-  user_data = templatefile("${path.module}/user_data.sh.tpl", {
-    dockerhub_image = var.dockerhub_image
-  })
+resource "aws_instance" "strapi_server" {
+  ami                    = data.aws_ami.latest_amazon_linux_2.id
+  instance_type          = "t2.micro" 
+  subnet_id              = data.aws_subnet.default.id
+  vpc_security_group_ids = [aws_security_group.strapi_sg.id]
+  iam_instance_profile   = data.aws_iam_instance_profile.existing_profile.name
+  key_name               = "strapi-mumbai-key"
+
+  # Corrected user_data script for EC2 user
+  user_data = <<-EOF
+              #!/bin/bash
+              yum update -y
+              yum install -y docker aws-cli
+              systemctl start docker
+              systemctl enable docker
+              usermod -a -G docker ec2-user
+              
+              # Log in to AWS ECR
+              aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${var.ecr_repository_url}
+              
+              # Pull and run the specified Strapi image
+              docker pull ${var.ecr_repository_url}:${var.image_tag}
+              docker run -d -p 80:1337 --name strapi-app ${var.ecr_repository_url}:${var.image_tag}
+              EOF
 
   tags = {
     Name = "Strapi-Server-Final-Fixed"
