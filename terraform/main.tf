@@ -1,55 +1,61 @@
+# terraform/main.tf
+
+# Configure the AWS provider
 provider "aws" {
   region = var.aws_region
 }
 
-# --- Data Sources to use existing AWS resources ---
+# Get the AWS account ID for constructing the ECR image URI
+data "aws_caller_identity" "current" {}
 
-# Find the default VPC to avoid VpcLimitExceeded errors
-data "aws_vpc" "default" {
-  default = true
-}
+# Find the latest Amazon Linux 2 AMI
+data "aws_ami" "amazon_linux_2" {
+  most_recent = true
+  owners      = ["amazon"]
 
-# Find a default public subnet within the default VPC
-data "aws_subnet" "default" {
-  vpc_id            = data.aws_vpc.default.id
-  availability_zone = "${var.aws_region}a"
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
 }
 
 # Find the existing IAM instance profile for ECR access
 data "aws_iam_instance_profile" "existing_profile" {
-  name = "ec2_ecr_full_access_profile"
+  name = var.instance_profile_name
 }
 
-# --- Managed Security Group ---
-
-# We will let Terraform create and manage the security group to ensure it's clean
+# Define the Security Group for the Strapi instance
 resource "aws_security_group" "strapi_sg" {
   name        = "strapi-sg-sid"
-  description = "Allow SSH, HTTP, and Strapi default port"
-  vpc_id      = data.aws_vpc.default.id
+  description = "Allow SSH, HTTP, and Strapi traffic"
 
   ingress {
-    description = "Allow SSH from anywhere"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow SSH access from anywhere"
   }
 
   ingress {
-    description = "Allow HTTP from anywhere"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTP traffic from anywhere"
   }
 
   ingress {
-    description = "Allow Strapi default port from anywhere"
     from_port   = 1337
     to_port     = 1337
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow access to Strapi default port"
   }
 
   egress {
@@ -64,46 +70,35 @@ resource "aws_security_group" "strapi_sg" {
   }
 }
 
-
-# --- EC2 Instance Resource ---
-
+# Define the EC2 Instance
 resource "aws_instance" "strapi_server" {
-  ami                    = "ami-0f5ee92e2d63afc18" # Amazon Linux 2023 for ap-south-1
-  instance_type          = "t2.micro"
-  subnet_id              = data.aws_subnet.default.id
+  ami                    = data.aws_ami.amazon_linux_2.id
+  instance_type          = var.instance_type
+  key_name               = var.key_name
   vpc_security_group_ids = [aws_security_group.strapi_sg.id]
   iam_instance_profile   = data.aws_iam_instance_profile.existing_profile.name
-  key_name               = "strapi-mumbai-key"
 
-  # This startup script is now correct for AMAZON LINUX
-  # It also includes the necessary environment variables for Strapi to start
+  # User data script to install Docker, pull the image from ECR, and run the container
   user_data = <<-EOF
               #!/bin/bash
+              # Install Docker
               yum update -y
-              yum install -y docker awscli
+              yum install -y docker
               service docker start
               usermod -a -G docker ec2-user
-              
-              # Log in to AWS ECR using the attached IAM role
-              aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${var.ecr_repository_url}
-              
-              # Pull the specified Strapi image
-              docker pull ${var.ecr_repository_url}:${var.image_tag}
-              
-              # Run the container with the required Strapi environment variables
-              docker run -d \
-                -p 80:1337 \
-                -e DATABASE_CLIENT=sqlite \
-                -e DATABASE_FILENAME=./.tmp/data.db \
-                -e JWT_SECRET=aSecretValueThatYouShouldChange1 \
-                -e ADMIN_JWT_SECRET=aSecretValueThatYouShouldChange2 \
-                -e APP_KEYS=aSecretValueThatYouShouldChange3,aSecretValueThatYouShouldChange4 \
-                --name strapi-app \
-                ${var.ecr_repository_url}:${var.image_tag}
+
+              # Login to ECR
+              aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com
+
+              # Stop and remove existing Strapi container if it exists
+              docker ps -q --filter "name=strapi" | grep -q . && docker stop strapi && docker rm -fv strapi
+
+              # Pull and run the new Strapi image
+              docker pull ${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.ecr_repo_name}:${var.strapi_image_tag}
+              docker run -d --name strapi -p 1337:1337 --restart always ${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.ecr_repo_name}:${var.strapi_image_tag}
               EOF
 
   tags = {
-    Name = "Strapi-Server-Final"
+    Name = "Strapi-Instance-Siddhant"
   }
 }
-

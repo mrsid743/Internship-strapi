@@ -1,45 +1,52 @@
-name: CD - Deploy with Terraform
+# .github/workflows/terraform.yml
+
+# This workflow deploys the Strapi application to an EC2 instance using Terraform.
+# It must be triggered manually from the GitHub Actions UI.
+
+name: CD - Deploy to EC2 with Terraform
 
 on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'The image tag (commit SHA) to deploy'
+        description: 'Image tag (commit SHA) to deploy'
         required: true
+        type: string
 
 jobs:
-  terraform-deploy:
-    name: 'Terraform Deploy'
+  deploy:
+    name: Deploy to AWS
     runs-on: ubuntu-latest
     
     defaults:
       run:
-        working-directory: ./terraform
+        working-directory: ./terraform # Run all commands in the terraform sub-directory
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0 # Specify a terraform version
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ap-south-1
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
 
-    - name: Terraform Init
-      run: terraform init
+      - name: Terraform Init
+        id: init
+        run: terraform init
 
-    - name: Terraform Plan
-      run: |
-        terraform plan -no-color \
-          -var="image_tag=${{ github.event.inputs.image_tag }}" \
-          -var="ecr_repository_url=${{ secrets.ECR_REPOSITORY_URL }}" \
-          -out=tfplan
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -var="strapi_image_tag=${{ github.event.inputs.image_tag }}" -no-color
+        continue-on-error: true
 
-    - name: Terraform Apply
-      run: terraform apply -auto-approve tfplan
-
+      - name: Terraform Apply
+        id: apply
+        run: terraform apply -auto-approve -var="strapi_image_tag=${{ github.event.inputs.image_tag }}"
