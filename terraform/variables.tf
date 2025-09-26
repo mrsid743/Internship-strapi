@@ -5,7 +5,7 @@ variable "aws_region" {
 }
 
 variable "ecr_repository_url" {
-  description = "The URL of the ECR repository (e.g., 123456789012.dkr.ecr.***.amazonaws.com)."
+  description = "The URL of the ECR repository."
   type        = string
 }
 
@@ -14,8 +14,3 @@ variable "image_tag" {
   type        = string
 }
 
-variable "ssh_public_key" {
-  description = "The public key to use for SSH access to the EC2 instance."
-  type        = string
-  sensitive   = true
-}

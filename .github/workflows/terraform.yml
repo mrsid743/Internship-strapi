@@ -4,20 +4,20 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Image tag to deploy (e.g., the commit SHA)'
+        description: 'The image tag (commit SHA) to deploy'
         required: true
 
 jobs:
-  terraform:
-    name: 'Terraform'
+  terraform-deploy:
+    name: 'Terraform Deploy'
     runs-on: ubuntu-latest
+    
     defaults:
       run:
-        shell: bash
         working-directory: ./terraform
 
     steps:
-    - name: Checkout
+    - name: Checkout repository
       uses: actions/checkout@v4
 
     - name: Setup Terraform
@@ -38,7 +38,6 @@ jobs:
         terraform plan -no-color \
           -var="image_tag=${{ github.event.inputs.image_tag }}" \
           -var="ecr_repository_url=${{ secrets.ECR_REPOSITORY_URL }}" \
-          -var="ssh_public_key=${{ secrets.SSH_PUBLIC_KEY }}" \
           -out=tfplan
 
     - name: Terraform Apply
