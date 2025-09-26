@@ -14,8 +14,17 @@ aws ecr get-login-password --region ${aws_region} | docker login --username AWS 
 # Check for a running 'strapi' container, stop and remove it if it exists
 docker ps -q --filter "name=strapi" | grep -q . && docker stop strapi && docker rm -fv strapi
 
-# Pull the new Strapi image from ECR using the variables passed from Terraform
+# Pull the new Strapi image from ECR
 docker pull ${aws_account_id}.dkr.ecr.${aws_region}.amazonaws.com/${ecr_repo_name}:${strapi_image_tag}
 
-# Run the new Docker container
-docker run -d --name strapi -p 1337:1337 --restart always ${aws_account_id}.dkr.ecr.${aws_region}.amazonaws.com/${ecr_repo_name}:${strapi_image_tag}
+# Run the new Docker container, injecting the secrets as environment variables
+docker run -d \
+  -e APP_KEYS=${app_keys} \
+  -e API_TOKEN_SALT=${api_token_salt} \
+  -e ADMIN_JWT_SECRET=${admin_jwt_secret} \
+  -e TRANSFER_TOKEN_SALT=${transfer_token_salt} \
+  --name strapi \
+  -p 1337:1337 \
+  --restart always \
+  ${aws_account_id}.dkr.ecr.${aws_region}.amazonaws.com/${ecr_repo_name}:${strapi_image_tag}
+

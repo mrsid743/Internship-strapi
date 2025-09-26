@@ -1,8 +1,5 @@
 # .github/workflows/terraform.yml
 
-# This workflow deploys the Strapi application to an EC2 instance using Terraform.
-# It must be triggered manually from the GitHub Actions UI.
-
 name: CD - Deploy to EC2 with Terraform
 
 on:
@@ -20,7 +17,7 @@ jobs:
     
     defaults:
       run:
-        working-directory: ./terraform # Run all commands in the terraform sub-directory
+        working-directory: ./terraform
 
     steps:
       - name: Checkout repository
@@ -29,7 +26,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.5.0 # Specify a terraform version
+          terraform_version: 1.5.0
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -49,4 +46,11 @@ jobs:
 
       - name: Terraform Apply
         id: apply
+        # Pass the secrets from GitHub to Terraform as environment variables
+        env:
+          TF_VAR_app_keys: ${{ secrets.STRAPI_APP_KEYS }}
+          TF_VAR_api_token_salt: ${{ secrets.STRAPI_API_TOKEN_SALT }}
+          TF_VAR_admin_jwt_secret: ${{ secrets.STRAPI_ADMIN_JWT_SECRET }}
+          TF_VAR_transfer_token_salt: ${{ secrets.STRAPI_TRANSFER_TOKEN_SALT }}
         run: terraform apply -auto-approve -var="strapi_image_tag=${{ github.event.inputs.image_tag }}"
+

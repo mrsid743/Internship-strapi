@@ -34,3 +34,28 @@ variable "instance_profile_name" {
   type        = string
   default     = "ec2_ecr_full_access_profile"
 }
+
+# === NEW VARIABLES FOR STRAPI SECRETS ===
+variable "app_keys" {
+  description = "Strapi APP_KEYS secret."
+  type        = string
+  sensitive   = true
+}
+
+variable "api_token_salt" {
+  description = "Strapi API_TOKEN_SALT secret."
+  type        = string
+  sensitive   = true
+}
+
+variable "admin_jwt_secret" {
+  description = "Strapi ADMIN_JWT_SECRET secret."
+  type        = string
+  sensitive   = true
+}
+
+variable "transfer_token_salt" {
+  description = "Strapi TRANSFER_TOKEN_SALT secret."
+  type        = string
+  sensitive   = true
+}
