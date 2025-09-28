@@ -9,7 +9,8 @@ This repository documents the process of setting up, containerizing, deploying, 
 * [Task 2: Dockerizing the Strapi Application](https://www.google.com/search?q=%23-task-2-dockerizing-the-strapi-application)  
 * [Task 3: Multi-Container Setup with Docker Compose](https://www.google.com/search?q=%23-task-3-multi-container-setup-with-docker-compose)  
 * [Task 4: Deploying to AWS EC2 with Terraform](https://www.google.com/search?q=%23-task-4-deploying-to-aws-ec2-with-terraform)  
-* [Task 5: Automating Deployment with GitHub Actions (CI/CD)](https://www.google.com/search?q=%23-task-5-automating-deployment-with-github-actions-cicd)
+* [Task 5: Automating Deployment with GitHub Actions (CI/CD)](https://www.google.com/search?q=%23-task-5-automating-deployment-with-github-actions-cicd)  
+* [Task 6: Deploying to AWS ECS Fargate with Terraform](https://www.google.com/search?q=%23-task-6-deploying-to-aws-ecs-fargate-with-terraform)
 
 ## **🛠️ Prerequisites**
 
@@ -21,7 +22,8 @@ Before you begin, ensure you have the following installed and configured:
 * **Terraform**  
 * An **AWS Account** with programmatic access (Access Key ID and Secret Access Key)  
 * A **Docker Hub Account**  
-* A **GitHub Account**
+* A **GitHub Account**  
+* **AWS CLI**
 
 ## **✅ Task 1: Local Strapi Setup**
 
@@ -428,3 +430,228 @@ resource "aws\_instance" "strapi\_server" {
 \# ... (output) ...
 
 Now, your complete CI/CD pipeline is set up\! 🚀
+
+## **✅ Task 6: Deploying to AWS ECS Fargate with Terraform**
+
+**Objective:** Deploy a scalable Strapi application on AWS using ECS Fargate, with all infrastructure managed by Terraform.
+
+### **Steps**
+
+1. Create an ECR Repository with Terraform  
+   First, we need a private registry to store our Docker image. Create a file named ecr.tf and add the following code to define an AWS ECR repository.  
+   resource "aws\_ecr\_repository" "strapi\_ecr\_repo" {  
+     name                 \= "strapi-app"  
+     image\_tag\_mutability \= "MUTABLE"
+
+     image\_scanning\_configuration {  
+       scan\_on\_push \= true  
+     }  
+   }
+
+2. Build and Push the Docker Image to ECR  
+   Before creating the rest of the infrastructure, you must push your application's Docker image to the new ECR repository.  
+   * First, apply the Terraform configuration to create the repository:  
+     terraform init  
+     terraform apply \-target=aws\_ecr\_repository.strapi\_ecr\_repo \--auto-approve
+
+   * Next, run the following commands to authenticate Docker with ECR, then build, tag, and push your image.  
+     \# Set environment variables for your AWS Account ID and Region  
+     export AWS\_ACCOUNT\_ID=$(aws sts get-caller-identity \--query Account \--output text)  
+     export AWS\_REGION=us-east-1 \# Or your preferred region  
+     export ECR\_REPO\_URI="${AWS\_ACCOUNT\_ID}.dkr.ecr.${AWS\_REGION}\[.amazonaws.com/strapi-app\](https://.amazonaws.com/strapi-app)"
+
+     \# 1\. Authenticate Docker to your ECR registry  
+     aws ecr get-login-password \--region $AWS\_REGION | docker login \--username AWS \--password-stdin $ECR\_REPO\_URI
+
+     \# 2\. Build the Docker image (ensure Dockerfile is in the current directory)  
+     docker build \-t strapi-app .
+
+     \# 3\. Tag the image for ECR  
+     docker tag strapi-app:latest $ECR\_REPO\_URI:latest
+
+     \# 4\. Push the image to ECR  
+     docker push $ECR\_REPO\_URI:latest
+
+3. Write Terraform Code for ECS Fargate Infrastructure  
+   Create a new file, ecs.tf, to define the cluster, load balancer, security groups, task definition, and service. This configuration uses the default VPC for simplicity.  
+   \# Fetch default VPC and subnets to deploy resources into them  
+   data "aws\_vpc" "default" {  
+     default \= true  
+   }
+
+   data "aws\_subnets" "default" {  
+     filter {  
+       name   \= "vpc-id"  
+       values \= \[data.aws\_vpc.default.id\]  
+     }  
+   }
+
+   \# Security Group for the Application Load Balancer (allows public HTTP traffic)  
+   resource "aws\_security\_group" "alb\_sg" {  
+     name        \= "strapi-alb-sg"  
+     description \= "Allow HTTP inbound traffic for ALB"  
+     vpc\_id      \= data.aws\_vpc.default.id
+
+     ingress {  
+       from\_port   \= 80  
+       to\_port     \= 80  
+       protocol    \= "tcp"  
+       cidr\_blocks \= \["0.0.0.0/0"\]  
+     }
+
+     egress {  
+       from\_port   \= 0  
+       to\_port     \= 0  
+       protocol    \= "-1"  
+       cidr\_blocks \= \["0.0.0.0/0"\]  
+     }  
+   }
+
+   \# Security Group for the Fargate Service (only allows traffic from our ALB)  
+   resource "aws\_security\_group" "fargate\_sg" {  
+     name        \= "strapi-fargate-sg"  
+     description \= "Allow inbound traffic from ALB for Fargate"  
+     vpc\_id      \= data.aws\_vpc.default.id
+
+     ingress {  
+       from\_port       \= 1337  
+       to\_port         \= 1337  
+       protocol        \= "tcp"  
+       security\_groups \= \[aws\_security\_group.alb\_sg.id\]  
+     }
+
+     egress {  
+       from\_port   \= 0  
+       to\_port     \= 0  
+       protocol    \= "-1"  
+       cidr\_blocks \= \["0.0.0.0/0"\]  
+     }  
+   }
+
+   \# Application Load Balancer (ALB) to route traffic to the service  
+   resource "aws\_lb" "strapi\_alb" {  
+     name               \= "strapi-alb"  
+     internal           \= false  
+     load\_balancer\_type \= "application"  
+     security\_groups    \= \[aws\_security\_group.alb\_sg.id\]  
+     subnets            \= data.aws\_subnets.default.ids  
+   }
+
+   resource "aws\_lb\_target\_group" "strapi\_tg" {  
+     name        \= "strapi-tg"  
+     port        \= 1337  
+     protocol    \= "HTTP"  
+     vpc\_id      \= data.aws\_vpc.default.id  
+     target\_type \= "ip"  
+     health\_check {  
+       path                \= "/\_health"  
+       healthy\_threshold   \= 2  
+       unhealthy\_threshold \= 2  
+       timeout             \= 3  
+       interval            \= 30  
+     }  
+   }
+
+   resource "aws\_lb\_listener" "strapi\_listener" {  
+     load\_balancer\_arn \= aws\_lb.strapi\_alb.arn  
+     port              \= 80  
+     protocol          \= "HTTP"
+
+     default\_action {  
+       type             \= "forward"  
+       target\_group\_arn \= aws\_lb\_target\_group.strapi\_tg.arn  
+     }  
+   }
+
+   \# ECS Cluster  
+   resource "aws\_ecs\_cluster" "strapi\_cluster" {  
+     name \= "strapi-cluster"  
+   }
+
+   \# ECS Task Definition  
+   resource "aws\_ecs\_task\_definition" "strapi\_task" {  
+     family                   \= "strapi-task"  
+     network\_mode             \= "awsvpc"  
+     requires\_compatibilities \= \["FARGATE"\]  
+     cpu                      \= "256"  \# 0.25 vCPU  
+     memory                   \= "512"  \# 512 MB  
+     execution\_role\_arn       \= aws\_iam\_role.ecs\_task\_execution\_role.arn
+
+     container\_definitions \= jsonencode(\[  
+       {  
+         name      \= "strapi"  
+         image     \= "${aws\_ecr\_repository.strapi\_ecr\_repo.repository\_url}:latest"  
+         essential \= true  
+         portMappings \= \[  
+           {  
+             containerPort \= 1337  
+             hostPort      \= 1337  
+           }  
+         \]  
+         \# NOTE: For a production setup, database credentials should be injected  
+         \# securely using AWS Secrets Manager, not hardcoded.  
+         environment \= \[  
+           { name \= "HOST", value \= "0.0.0.0" },  
+           { name \= "PORT", value \= "1337" }  
+         \]  
+       }  
+     \])  
+   }
+
+   \# ECS Service  
+   resource "aws\_ecs\_service" "strapi\_service" {  
+     name            \= "strapi-service"  
+     cluster         \= aws\_ecs\_cluster.strapi\_cluster.id  
+     task\_definition \= aws\_ecs\_task\_definition.strapi\_task.arn  
+     launch\_type     \= "FARGATE"  
+     desired\_count   \= 1
+
+     network\_configuration {  
+       subnets         \= data.aws\_subnets.default.ids  
+       security\_groups \= \[aws\_security\_group.fargate\_sg.id\]  
+       assign\_public\_ip \= true \# Required for Fargate to pull the ECR image  
+     }
+
+     load\_balancer {  
+       target\_group\_arn \= aws\_lb\_target\_group.strapi\_tg.arn  
+       container\_name   \= "strapi"  
+       container\_port   \= 1337  
+     }
+
+     depends\_on \= \[aws\_lb\_listener.strapi\_listener\]  
+   }
+
+   \# IAM Role for ECS Task Execution  
+   resource "aws\_iam\_role" "ecs\_task\_execution\_role" {  
+     name \= "ecs\_task\_execution\_role"  
+     assume\_role\_policy \= jsonencode({  
+       Version \= "2012-10-17",  
+       Statement \= \[{  
+         Action \= "sts:AssumeRole",  
+         Effect \= "Allow",  
+         Principal \= {  
+           Service \= "ecs-tasks.amazonaws.com"  
+         }  
+       }\]  
+     })  
+   }
+
+   resource "aws\_iam\_role\_policy\_attachment" "ecs\_task\_execution\_role\_policy" {  
+     role       \= aws\_iam\_role.ecs\_task\_execution\_role.name  
+     policy\_arn \= "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"  
+   }
+
+   \# Output the public URL of the ALB  
+   output "strapi\_url" {  
+     description \= "Public URL of the Strapi application"  
+     value       \= "http://${aws\_lb.strapi\_alb.dns\_name}"  
+   }
+
+4. Initialize and Deploy the Infrastructure  
+   Now, run Terraform to deploy the entire ECS stack.  
+   terraform init  
+   terraform plan  
+   terraform apply \--auto-approve
+
+5. Verify Deployment  
+   Once terraform apply is complete, it will output the strapi\_url. Navigate to this URL in your browser to access your Strapi application, now running scalably on ECS Fargate\!
