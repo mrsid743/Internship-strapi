@@ -1,61 +1,44 @@
 # terraform/variables.tf
 
 variable "aws_region" {
-  description = "The AWS region to deploy resources in."
+  description = "The AWS region to deploy the infrastructure in."
   type        = string
-  default     = "ap-south-1"
+  default     = "ap-south-1" # Default region set to Mumbai
 }
 
-variable "strapi_image_tag" {
-  description = "The tag of the Strapi Docker image to deploy."
+variable "project_name" {
+  description = "A unique name for the project, used for naming resources."
   type        = string
+  default     = "strapi-ecs-fargate"
 }
 
-variable "instance_type" {
-  description = "The EC2 instance type."
-  type        = string
-  default     = "t2.micro"
-}
-
-variable "key_name" {
-  description = "The name of the EC2 key pair for SSH access."
-  type        = string
-  default     = "strapi-mumbai-key"
-}
-
-variable "ecr_repo_name" {
-  description = "The name of the ECR repository."
+variable "ecr_repository_name" {
+  description = "The name of the pre-existing ECR repository."
   type        = string
   default     = "siddhant-strapi"
 }
 
-variable "instance_profile_name" {
-  description = "The name of the IAM instance profile with ECR access."
+variable "ec2_key_name" {
+  description = "The name of the EC2 key pair."
   type        = string
-  default     = "ec2_ecr_full_access_profile"
+  default     = "strapi-mumbai-key"
 }
 
-# === NEW VARIABLES FOR STRAPI SECRETS ===
-variable "app_keys" {
-  description = "Strapi APP_KEYS secret."
-  type        = string
-  sensitive   = true
+variable "container_cpu" {
+  description = "The number of CPU units (e.g., 256 for 0.25 vCPU) to reserve for the container."
+  type        = number
+  default     = 256
 }
 
-variable "api_token_salt" {
-  description = "Strapi API_TOKEN_SALT secret."
-  type        = string
-  sensitive   = true
+variable "container_memory" {
+  description = "The amount of memory (in MiB) to reserve for the container."
+  type        = number
+  default     = 512
 }
 
-variable "admin_jwt_secret" {
-  description = "Strapi ADMIN_JWT_SECRET secret."
-  type        = string
-  sensitive   = true
+variable "strapi_port" {
+  description = "The port the Strapi container listens on."
+  type        = number
+  default     = 1337
 }
 
-variable "transfer_token_salt" {
-  description = "Strapi TRANSFER_TOKEN_SALT secret."
-  type        = string
-  sensitive   = true
-}
